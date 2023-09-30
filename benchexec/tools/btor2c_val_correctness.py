@@ -19,7 +19,7 @@ class Tool(benchexec.tools.template.BaseTool2):
         return tool_locator.find_executable("main.py")
 
     def name(self):
-        return "BTOR2C-Val"
+        return "BTOR2C-Val Correctness"
 
     def cmdline(self, executable, options, task, rlimits):
         if options.contains("--violation"):
