@@ -8,6 +8,7 @@
 import benchexec.tools.template
 import benchexec.result as result
 
+import re
 
 class Tool(benchexec.tools.template.BaseTool2):
     """
@@ -27,26 +28,33 @@ class Tool(benchexec.tools.template.BaseTool2):
     def get_value_from_output(self, output, identifier):
         status = result.RESULT_UNKNOWN
         for line in output:
-            if "Result:" in line:
-                if "invalid-invariant" in line:
-                    status = result.WITNESS_CATEGORY_WRONG + "(invalid invariant)"
-                elif "no-invariant" in line:
-                    status = result.WITNESS_CATEGORY_WRONG + "(no invariant)"
-                elif "ok" in line:
-                    status = result.WITNESS_CATEGORY_CORRECT
-                elif "prop-bad" in line:
-                    status = result.WITNESS_CATEGORY_WRONG + "(prop-bad)"
-                elif "init-t-bad" in line:
-                    status = result.WITNESS_CATEGORY_WRONG + "(init-t-bad)"
-                elif "t-bad" in line:
-                    status = result.WITNESS_CATEGORY_WRONG + "(t-bad)"
-                elif "init-bad" in line:
-                    status = result.WITNESS_CATEGORY_WRONG + "(init-bad)"
-                elif "bad" in line:
-                    status = result.WITNESS_CATEGORY_WRONG + "(bad)"
-                elif "verifier-err" in line:
-                    status = result.WITNESS_CATEGORY_ERROR + "(verifier-err)"
-                elif "conflict" in line:
-                    status = result.WITNESS_CATEGORY_ERROR + "(conflict)"
+            if "Validation result:" in line:
+                # correctness cases
+                if "unknown(invariant parse failed)" in line:
+                    status = result.RESULT_UNKNOWN + "(invariant parse failed)"
+                elif "unknown(no invariant)" in line:
+                    status = result.RESULT_UNKNOWN + "(no invariant)"
+                elif "true(valid invariant)" in line:
+                    status = result.RESULT_TRUE_PROP
+                elif "true(safe invariant)" in line:
+                    status = result.RESULT_TRUE_PROP
+                elif "true(inductive invariant)" in line:
+                    status = result.RESULT_TRUE_PROP
+                elif "unknown(invalid invariant)" in line:
+                    status = result.RESULT_UNKNOWN + "(invalid invariant)"
+                elif "unknown(unsafe invariant)" in line:
+                    status = result.RESULT_UNKNOWN + "(unsafe invariant)"
+                elif "unknown(not inductive invariant)" in line:
+                    status = result.RESULT_UNKNOWN + "(not inductive invariant)"
+                # violation cases
+                elif "false" in line:
+                    status = result.RESULT_FALSE_PROP
+                elif "unknown(violation not reached)" in line:
+                    status = result.RESULT_UNKNOWN + "(violation not reached)"
+                # common cases
+                elif "error" in line:
+                    pattern = r"error(\([^)]+\))"
+                    cause = str(re.search(pattern, line).group(1))
+                    status = result.RESULT_ERROR + cause
                 break
         return status
