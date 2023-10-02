@@ -22,7 +22,7 @@ class Tool(benchexec.tools.template.BaseTool2):
         return "btor2c-val-correctness"
 
     def cmdline(self, executable, options, task, rlimits):
-        if options.contains("--violation"):
+        if "--violation" in options:
             raise ValueError("Use other tool info for violation witnesses")
         options.append("--correctness")
         return [executable] + options + [task.single_input_file]
