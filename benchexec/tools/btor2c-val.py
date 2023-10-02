@@ -11,7 +11,7 @@ import benchexec.result as result
 
 class Tool(benchexec.tools.template.BaseTool2):
     """
-    Tool info for BTOR2C-Val Correctness: A Validator of Correctness for BTOR2C programs
+    Tool info for BTOR2C-Val: An SV-COMP Witness Validator for BTOR2C programs
     URL: https://gitlab.com/sosy-lab/software/btor2c-val
     """
 
@@ -19,12 +19,9 @@ class Tool(benchexec.tools.template.BaseTool2):
         return tool_locator.find_executable("main.py")
 
     def name(self):
-        return "btor2c-val-correctness"
+        return "btor2c-val"
 
     def cmdline(self, executable, options, task, rlimits):
-        if "--violation" in options:
-            raise ValueError("Use other tool info for violation witnesses")
-        options.append("--correctness")
         return [executable] + options + [task.single_input_file]
 
     def get_value_from_output(self, output, identifier):
