@@ -23,7 +23,7 @@ class Tool(benchexec.tools.template.BaseTool2):
         return "btor2c-val"
 
     def cmdline(self, executable, options, task, rlimits):
-        return [executable] + options + [task.single_input_file]
+        return [executable] + options + ["--program"] + [task.single_input_file]
 
     def get_value_from_output(self, output, identifier):
         status = result.RESULT_UNKNOWN
