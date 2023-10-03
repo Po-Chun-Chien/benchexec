@@ -25,9 +25,9 @@ class Tool(benchexec.tools.template.BaseTool2):
     def cmdline(self, executable, options, task, rlimits):
         return [executable] + options + ["--program"] + [task.single_input_file]
 
-    def get_value_from_output(self, output, identifier):
+    def determine_result(self, run):
         status = result.RESULT_UNKNOWN
-        for line in output:
+        for line in run.output:
             if "Validation result:" in line:
                 # correctness cases
                 if "unknown(invariant parse failed)" in line:
