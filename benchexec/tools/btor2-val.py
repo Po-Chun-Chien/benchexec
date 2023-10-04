@@ -22,7 +22,14 @@ class Tool(benchexec.tools.template.BaseTool2):
         return "btor2-val"
 
     def cmdline(self, executable, options, task, rlimits):
-        return [executable] + options + ["--program"] + [task.single_input_file]
+        return [
+            executable,
+            *options,
+            "--program",
+            task.input_files[0],
+            "--btor2",
+            task.input_files[1],
+        ]
 
     def determine_result(self, run):
         if run.was_timeout:
