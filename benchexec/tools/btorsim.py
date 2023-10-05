@@ -35,11 +35,11 @@ class Tool(benchexec.tools.template.BaseTool2):
             for line in run.output[::-1]:
                 if line.startswith("[btorsim] reached bad state properties"):
                     return result.RESULT_FALSE_PROP
-            return result.RESULT_UNKNOWN + "(unexpected behavior)"
+            return result.RESULT_ERROR + "(unexpected behavior)"
         else:  # exit_code != 0
             line = run.output[-1]
             if "claimed bad state property" in line and "not reached" in line:
                 return result.RESULT_UNKNOWN + "(violation not reached)"
             if "parse error" in line:
-                return result.RESULT_ERROR + "(parse error)"
+                return result.RESULT_ERROR + "(parsing failed)"
             return result.RESULT_ERROR
