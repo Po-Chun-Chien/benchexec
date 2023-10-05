@@ -11,12 +11,12 @@ import benchexec.result as result
 
 class Tool(benchexec.tools.template.BaseTool2):
     """
-    Tool info for BTOR2C-Val: An SV-COMP Witness Validator for BTOR2C programs
-    URL: https://gitlab.com/sosy-lab/software/btor2c-val
+    Tool info for Btor2-Val: A portfolio-based validator for Btor2
+    URL: https://gitlab.com/sosy-lab/software/btor2-val
     """
 
     def executable(self, tool_locator):
-        return tool_locator.find_executable("main.py")
+        return tool_locator.find_executable("btor2-val", subdir="bin")
 
     def name(self):
         return "btor2-val"
