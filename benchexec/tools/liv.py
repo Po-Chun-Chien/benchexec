@@ -23,12 +23,6 @@ class Tool(BaseTool2):
         return tool_locator.find_executable("liv", subdir="bin")
 
     def program_files(self, executable):
-        print(
-            [executable]
-            + self._program_files_from_executable(
-                executable, self.REQUIRED_PATHS, parent_dir=True
-            )
-        )
         return [executable] + self._program_files_from_executable(
             executable, self.REQUIRED_PATHS, parent_dir=True
         )
