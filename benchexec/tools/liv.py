@@ -56,7 +56,7 @@ class Tool(BaseTool2):
         if "true" in lastline:
             return benchexec.result.RESULT_TRUE_PROP
         elif "false" in lastline:
-            return benchexec.result.RESULT_FALSE_PROP
+            return benchexec.result.RESULT_UNKNOWN + "(noninductive invariant)"
         elif "unknown" in lastline:
             return benchexec.result.RESULT_UNKNOWN
         else:
