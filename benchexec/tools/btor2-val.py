@@ -57,9 +57,13 @@ class Tool(benchexec.tools.template.BaseTool2):
         match = None
         for line in output:
             if identifier in line:
-                startPosition = line.find(f"{identifier}:") + len(identifier) + 1
+                startPosition = line.find(f"{identifier}") + len(identifier)
                 if match is None:
-                    match = line[startPosition:].strip()
+                    match = (
+                        identifier
+                        if startPosition == len(line)
+                        else line[startPosition:].strip()
+                    )
                 else:
                     logging.warning(
                         "skipping repeated match for identifier '%s': '%s'",
