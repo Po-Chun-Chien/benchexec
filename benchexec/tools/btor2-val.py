@@ -5,6 +5,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import logging
 import benchexec.tools.template
 import benchexec.result as result
 
@@ -51,3 +52,18 @@ class Tool(benchexec.tools.template.BaseTool2):
                     return status
                 # correctness cases
         return result.RESULT_ERROR
+
+    def get_value_from_output(self, output, identifier):
+        match = None
+        for line in output:
+            if identifier in line:
+                startPosition = line.find(f"{identifier}:") + len(identifier) + 1
+                if match is None:
+                    match = line[startPosition:].strip()
+                else:
+                    logging.warning(
+                        "skipping repeated match for identifier '%s': '%s'",
+                        identifier,
+                        line,
+                    )
+        return match
