@@ -6,9 +6,12 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import collections
-import functools
+import io
 import os
 import re
+import urllib.request
+
+from benchexec import util
 
 # CONSTANTS
 
@@ -31,7 +34,7 @@ CATEGORY_ERROR = "error"
 
 CATEGORY_MISSING = "missing"
 """BenchExec could not determine whether run result was correct or wrong
-because no property was defined, and no other categories apply."""
+because no property was defined, no expected result was defined, and no other categories apply."""
 
 # categorization of a witness of a run result
 # 'valid' and 'invalid' refer to whether the witness type matches the expected result.
@@ -104,7 +107,8 @@ _SCORE_WRONG_FALSE = -16
 _SCORE_WRONG_TRUE = -32
 # Score factor for validation results on invalid witnesses
 # as described in https://doi.org/10.1007/978-3-031-22308-2_8 (page 171, last paragraph, factor q)
-_SCORE_FACTOR_WRONG_WITNESS = 2
+# Factor was updated to 1 for SV-COMP 2024.
+_SCORE_FACTOR_WRONG_WITNESS = 1
 
 
 class ExpectedResult(collections.namedtuple("ExpectedResult", "result subproperty")):
@@ -132,6 +136,8 @@ class Property(collections.namedtuple("Property", "filename is_svcomp name")):
     """Stores information about a property"""
 
     __slots__ = ()  # reduce per-instance memory consumption
+
+    _cache = {}  # cache for Property instances / OSErrors on creation
 
     def _adjust_score_for_witness_validation(self, score, witness_category):
         if witness_category == WITNESS_CATEGORY_CORRECT:
@@ -179,29 +185,48 @@ class Property(collections.namedtuple("Property", "filename is_svcomp name")):
         return self.name
 
     @classmethod
-    @functools.lru_cache()  # cache because it reads files
     def create(cls, propertyfile):
         """
         Create a Property instance by attempting to parse the given property file.
         @param propertyfile: A file name of a property file
         """
-        with open(propertyfile) as f:
-            # SV-COMP property files have every non-empty line start with CHECK,
-            # and there needs to be at least one such line.
-            is_svcomp = False
-            for line in f.readlines():
-                if line.rstrip():
-                    if line.startswith("CHECK"):
-                        # Found line with CHECK, might be an SV-COMP property
-                        is_svcomp = True
-                    else:
-                        # Found line without CHECK, definitely not an SV-COMP property
-                        is_svcomp = False
-                        break
+        # Use cache to prevent potentially lots of I/O.
+        # Also cache exceptions, which is why we cannot use functools.lru_cache
+        cached = cls._cache.get(propertyfile)
+        if isinstance(cached, OSError):
+            raise cached
+        elif cached:
+            return cached
+
+        open_func = (
+            (lambda f: io.TextIOWrapper(urllib.request.urlopen(f)))  # noqa: S310
+            if util.is_url(propertyfile)
+            else open
+        )
+
+        try:
+            with open_func(propertyfile) as f:
+                # SV-COMP property files have every non-empty line start with CHECK,
+                # and there needs to be at least one such line.
+                is_svcomp = False
+                for line in f.readlines():
+                    if line.rstrip():
+                        if line.startswith("CHECK"):
+                            # Found line with CHECK, might be an SV-COMP property
+                            is_svcomp = True
+                        else:
+                            # Found line without CHECK, definitely not an SV-COMP property
+                            is_svcomp = False
+                            break
+        except OSError as e:
+            cls._cache[propertyfile] = e
+            raise e
 
         name = os.path.splitext(os.path.basename(propertyfile))[0]
 
-        return cls(propertyfile, is_svcomp, name)
+        result = cls(propertyfile, is_svcomp, name)
+        cls._cache[propertyfile] = result
+        return result
 
 
 def _svcomp_max_score(expected_result):

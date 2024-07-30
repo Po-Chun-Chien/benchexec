@@ -15,6 +15,7 @@ import fcntl
 import logging
 import os
 import resource  # noqa: F401 @UnusedImport necessary to eagerly import this module
+import shlex
 import signal
 import socket
 import struct
@@ -39,10 +40,12 @@ __all__ = [
     "drop_capabilities",
     "wait_for_child_and_forward_signals",
     "setup_container_system_config",
+    "setup_cgroup_namespace",
     "CONTAINER_UID",
     "CONTAINER_GID",
     "CONTAINER_HOME",
     "CONTAINER_HOSTNAME",
+    "check_apparmor_userns_restriction",
 ]
 
 
@@ -113,6 +116,28 @@ NATIVE_CLONE_CALLBACK_SUPPORTED = (
     os.uname().sysname == "Linux" and os.uname().machine == "x86_64"
 )
 """Whether we use generated native code for clone or an unsafe Python fallback"""
+
+_ERROR_MSG_USER_NS_RESTRICTION = (
+    "Unprivileged user namespaces forbidden on this system, please "
+    "enable them with 'sysctl -w kernel.apparmor_restrict_unprivileged_userns=0'. "
+    "Ubuntu disables them by default since 24.04, refer to "
+    "https://ubuntu.com/blog/ubuntu-23-10-restricted-unprivileged-user-namespaces "
+    "for more information."
+)
+
+
+def check_apparmor_userns_restriction(error: OSError):
+    """Check whether the passed OSError was likely caused by Ubuntu's AppArmor-based
+    restriction of user namespaces."""
+    return (
+        error.errno
+        in [
+            errno.EPERM,
+            errno.EACCES,
+        ]
+        and util.try_read_file("/proc/sys/kernel/apparmor_restrict_unprivileged_userns")
+        == "1"
+    )
 
 
 @contextlib.contextmanager
@@ -519,7 +544,7 @@ def duplicate_mount_hierarchy(mount_base, temp_base, work_base, dir_modes):
                     e.errno,
                     f"Creating overlay mount for '{mp}' failed: {os.strerror(e.errno)}. "
                     f"Please use other directory modes, "
-                    f"for example '--read-only-dir {util.escape_string_shell(mp)}'.",
+                    f"for example '--read-only-dir {shlex.quote(mp)}'.",
                 )
 
         elif mode == DIR_HIDDEN:
@@ -581,7 +606,7 @@ def determine_directory_mode(dir_modes, path, fstype=None):
     From a high-level mapping of desired directory modes, determine the actual mode
     for a given directory.
     """
-    if fstype == b"proc":
+    if path == b"/proc" and fstype == b"proc":
         # proc is necessary for the grandchild to read PID, will be replaced later.
         return DIR_READ_ONLY
     if util.path_is_below(path, b"/proc"):
@@ -835,11 +860,7 @@ def setup_seccomp_filter():
         logging.info("Could not enable seccomp filter for container isolation: %s", e)
 
 
-try:
-    _ALL_SIGNALS = signal.valid_signals()  # pytype: disable=module-attr
-except AttributeError:
-    # Only exists on Python 3.8+
-    _ALL_SIGNALS = range(1, signal.NSIG)
+_ALL_SIGNALS = signal.valid_signals()
 
 
 def block_all_signals():
@@ -958,3 +979,23 @@ def is_container_system_config_file(file):
     return file in (
         os.path.join("/etc", f.decode()) for f in CONTAINER_ETC_FILE_OVERRIDE
     )
+
+
+def setup_cgroup_namespace():
+    """Move the current process into a new cgroup namespace and setup /sys/fs/cgroup
+    appropriately. This method assumes that cgroupv2 is used.
+    It needs to be called from within the target process."""
+    # Move us to new namespace.
+    libc.unshare(libc.CLONE_NEWCGROUP)
+
+    # Mount /sys/fs/cgroup with view of new namespace.
+    # For some reason, mounting directly on top of /sys/fs/cgroup gives EBUSY,
+    # but mounting somewhere else and moving into the correct place works.
+    libc.mount(
+        b"cgroup2",
+        b"/proc",
+        b"cgroup2",
+        libc.MS_NOSUID | libc.MS_NODEV | libc.MS_NOEXEC,
+        None,
+    )
+    libc.mount(b"/proc", b"/sys/fs/cgroup", b"none", libc.MS_MOVE, None)

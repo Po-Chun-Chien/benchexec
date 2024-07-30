@@ -26,7 +26,6 @@ import sys
 from ctypes.util import find_library
 import ctypes
 from xml.etree import ElementTree
-from shlex import quote as escape_string_shell  # noqa: F401 @UnusedImport
 
 
 _BYTE_FACTOR = 1000  # byte in kilobyte
@@ -248,6 +247,49 @@ def non_empty_str(s):
     if not s:
         raise InputValueError("empty string not allowed")
     return s
+
+
+def print_decimal(d):
+    """
+    Print a Decimal instance in non-scientific (i.e., decimal) notation with full
+    precision, i.e., all digits are printed exactly as stored in the Decimal instance.
+    Note that str(d) always falls back to scientific notation for very small values.
+    """
+
+    if d.is_nan():
+        return "NaN"
+    elif d.is_infinite():
+        return "Inf" if d > 0 else "-Inf"
+    assert d.is_finite()
+
+    sign, digits, exp = d.as_tuple()
+    # sign is 1 if negative
+    # digits is exactly the sequence of significant digits in the decimal representation
+    # exp tells us whether we need to shift digits (pos: left shift; neg: right shift).
+    # left shift can only add zeros, right shift adds decimal separator
+
+    sign = "-" if sign == 1 else ""
+    digits = list(map(str, digits))
+
+    if exp >= 0:
+        if digits == ["0"]:
+            # special case: return "0" instead of "0000" for "0e4"
+            return sign + "0"
+        return sign + "".join(digits) + ("0" * exp)
+
+    # Split digits into parts before and after decimal separator.
+    # If -exp > len(digits) the result needs to start with "0.", so we force a 0.
+    integral_part = digits[:exp] or ["0"]
+    decimal_part = digits[exp:]
+    assert decimal_part
+
+    return (
+        sign
+        + "".join(integral_part)
+        + "."
+        + ("0" * (-exp - len(decimal_part)))  # additional zeros if necessary
+        + "".join(decimal_part)
+    )
 
 
 def expand_filename_pattern(pattern, base_dir):
@@ -503,6 +545,10 @@ def read_key_value_pairs_from_file(*path):
             yield line.split(" ", 1)  # maxsplit=1
 
 
+def is_url(path_or_url):
+    return "://" in path_or_url or path_or_url.startswith("file:")
+
+
 class ProcessExitCode(collections.namedtuple("ProcessExitCode", "raw value signal")):
     """Tuple for storing the exit status indication given by a os.wait() call.
     Only value or signal are present, not both
@@ -681,7 +727,7 @@ def should_color_output():
     return sys.stdout.isatty() and "NO_COLOR" not in os.environ
 
 
-def setup_logging(fmt="%(asctime)s - %(levelname)s - %(message)s", level="INFO"):
+def setup_logging(fmt="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO):
     """Setup the logging framework with a basic configuration"""
     if should_color_output():
         try:
@@ -772,3 +818,27 @@ def check_msr():
         if all(os.access(f"/dev/cpu/{cpu}/msr", os.W_OK) for cpu in cpu_dirs):
             res["write"] = True
     return res
+
+
+def is_child_process_of_us(pid: int) -> bool:
+    """
+    Return if the given PID is a (transitive) child process of the current process.
+    Also returns true if the given PID is ours.
+    """
+    if pid == os.getpid():
+        return True
+
+    ppid = None
+    try:
+        with open(f"/proc/{pid}/status") as status_file:
+            for line in status_file:
+                if line.startswith("PPid:"):
+                    ppid = int(line.split(":", maxsplit=1)[1].strip())
+                    break
+    except FileNotFoundError:
+        pass  # Process terminated in the meantime.
+
+    if ppid:
+        return is_child_process_of_us(ppid)
+    else:
+        return False

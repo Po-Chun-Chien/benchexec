@@ -13,9 +13,9 @@ SPDX-License-Identifier: Apache-2.0
 
 ### Requirements
 
-- Python 3.7 or newer
+- Python 3.8 or newer
 - Linux (cf. [Kernel Requirements](#kernel-requirements) below for details)
-- Cgroups v1 (cf. [Setting up Cgroups](#setting-up-cgroups) below for details)
+- Access to cgroups (cf. [Setting up Cgroups](#setting-up-cgroups) below for details)
 - x86 or ARM machine (please [contact us](https://github.com/sosy-lab/benchexec/issues/new) for other architectures)
 
 The following packages are optional but recommended dependencies:
@@ -26,12 +26,13 @@ The following packages are optional but recommended dependencies:
 - [pqos_wrapper] and [pqos library][pqos]
   provide isolation of L3 cache and measurement of cache usage and memory bandwidth
   (only in `benchexec`).
+- [pystemd] allows BenchExec to automatically configure cgroups on systems with systemd and cgroups v2.
 
 Note that the `table-generator` utility requires only Python and works on all platforms.
 
-### Ubuntu
+### Debian/Ubuntu
 
-For installing BenchExec on Ubuntu we recommend installing from our [PPA](https://launchpad.net/~sosy-lab/+archive/ubuntu/benchmarking):
+For installing BenchExec on Debian or Ubuntu we recommend installing from our [PPA](https://launchpad.net/~sosy-lab/+archive/ubuntu/benchmarking):
 
     sudo add-apt-repository ppa:sosy-lab/benchmarking
     sudo apt install benchexec
@@ -41,9 +42,11 @@ and install manually (note that the leading `./` is important, otherwise `apt` w
 
     apt install --install-recommends ./benchexec_*.deb
 
-Our package automatically configures the necessary cgroup permissions
-if the system uses cgroups v1.
-Just add the users that should be able to use BenchExec to the group `benchexec`
+On Ubuntu 21.10 and newer with the default cgroup config, this is all.
+
+On older Ubuntu versions or those configured for cgroups v1,
+our package automatically configures the necessary cgroup permissions.
+Then add the users that should be able to use BenchExec to the group `benchexec`
 (group membership will be effective after the next login of the respective user):
 
     adduser <USER> benchexec
@@ -54,12 +57,40 @@ or whether additional settings are necessary as [described below](#testing-cgrou
 Note that [pqos_wrapper] is currently not available as a Debian package
 and needs to be installed manually according to its documentation.
 
-### Debian
+### NixOS
 
-For Debian, please follow the instructions for Ubuntu,
-but please note that the PPA currently does not work for Debian
-due to a [compression mechanism not supported by Debian](https://github.com/sosy-lab/benchexec/issues/880),
-so you have to install the `.deb` package manually from GitHub.
+For NixOS 24.05 and later, refer to the options:
+ - [`programs.benchexec.*`](https://search.nixos.org/options?query=programs.benchexec)
+   to configure BenchExec. The optional dependencies
+   [cpu-energy-meter], [pqos_wrapper], and [LXCFS] as well as
+   kernel module loading for access to MSR registers
+   will all be enabled with BenchExec by default.
+   To opt out, set the respective `*.enable` option to `false` explicitly.
+ - [`programs.cpu-energy-meter.*`](https://search.nixos.org/options?query=programs.cpu-energy-meter)
+   to configure the optional dependency [cpu-energy-meter].
+ - [`programs.pqos-wrapper.*`](https://search.nixos.org/options?query=programs.pqos-wrapper)
+   to configure the optional dependency [pqos_wrapper].
+ - [`virtualisation.lxc.lxcfs.*`](https://search.nixos.org/options?query=virtualisation.lxc.lxcfs)
+   to configure the optional dependency [LXCFS].
+ - [`hardware.cpu.x86.msr`](https://search.nixos.org/options?query=hardware.cpu.x86.msr)
+   to configure access to MSR registers, by default for members of the group `msr`.
+ - [`users.users.<name>.extraGroups`](https://search.nixos.org/options?show=users.users.<name>.extraGroups)
+   to add user accounts extra groups such as `msr`
+   (required for both [cpu-energy-meter] and [pqos_wrapper]).
+   Note that users are *NOT* added to `msr` by default.
+   This decision is opt-in for your security.
+
+For example:
+```nix
+{
+  programs.benchexec = {
+    enable = true;
+    users = [ "<USER>" ];
+  };
+  
+  users.users."<USER>".extraGroups = [ "msr" ];
+}
+```
 
 ### Other Distributions
 
@@ -68,11 +99,11 @@ To automatically download and install the latest stable version and its dependen
 from the [Python Packaging Index](https://pypi.python.org/pypi/BenchExec) with pip,
 run this command:
 
-    sudo pip3 install benchexec coloredlogs
+    sudo pip3 install benchexec[systemd] coloredlogs
 
 You can also install BenchExec only for your user with
 
-    pip3 install --user benchexec coloredlogs
+    pip3 install --user benchexec[systemd] coloredlogs
 
 In the latter case you probably need to add the directory where pip installs the commands
 to the PATH environment by adding the following line to your `~/.profile` file:
@@ -81,8 +112,18 @@ to the PATH environment by adding the following line to your `~/.profile` file:
 
 Of course you can also install BenchExec in a virtualenv if you are familiar with Python tools.
 
+On systems without systemd you can omit the `[systemd]` part.
+
 Please make sure to configure cgroups as [described below](#setting-up-cgroups)
 and install [cpu-energy-meter], [libseccomp2], [LXCFS], and [pqos_wrapper] if desired.
+
+### Containerized Environments
+
+Please refer to the [dedicated guide](doc/benchexec-in-container.md) for the
+necessary steps to install BenchExec inside a container.
+
+**IMPORTANT**: In any case, cgroups with all relevant controllers need to be
+available on the host system.
 
 ### Development version
 
@@ -129,13 +170,18 @@ that are not usable on all distributions by default:
 
 - **User Namespaces**: This is available on most distros
   (the kernel option is `CONFIG_USER_NS`),
-  but Debian and Arch Linux disable this feature for regular users,
-  so the system administrator needs to enable it
-  with `sudo sysctl -w kernel.unprivileged_userns_clone=1` or a respective entry
+  but many distributions disable this feature for regular users,
+  so the system administrator needs to enable it.
+  On *Debian* or *Arch* it can be necessary to enable this feature with
+  `sudo sysctl -w kernel.unprivileged_userns_clone=1` or a respective entry
   in `/etc/sysctl.conf`.
-  On CentOS it can be necessary to enable this feature with
+  On *CentOS* it can be necessary to enable this feature with
   `sudo sysctl -w user.max_user_namespaces=10000` or a respective entry
   in `/etc/sysctl.conf` (the exact value is not important).
+  On *Ubuntu*, we recommend to use our Ubuntu package, which takes care of this.
+  Alternatively, on 24.04 or newer one can enable this feature with
+  `sysctl -w kernel.apparmor_restrict_unprivileged_userns=0` or a respective entry
+  in `/etc/sysctl.conf`.
 
 - **Unprivileged Overlay Filesystem**: This is only available since Linux 5.11
   (kernel option `CONFIG_OVERLAY_FS`),
@@ -148,17 +194,18 @@ If container mode does not work, please check the [common problems](container.md
 
 ## Setting up Cgroups
 
-If you have installed the Debian package and you are running systemd
-(default since Debian 8 and Ubuntu 15.04),
-the package should have configured everything automatically
-as long as the system is using cgroups v1.
-Just add your user to the group `benchexec` and reboot:
+This depends on whether your system is using cgroups v1 or v2.
+To find out, please check whether `/sys/fs/cgroup/cgroup.controllers` exists.
+If yes, you are using v2, otherwise v1
+(for the purpose of BenchExec, a hybrid usage of v1 and v2 counts as v1).
 
-    adduser <USER> benchexec
+Then please follow the instructions from the appropriate subsection
+and the instructions for [testing and troubleshooting](#testing-cgroups-setup-and-known-problems).
 
-Support for cgroups v2 is still under development for BenchExec.
-On recent distributions (e.g., Ubuntu 22.04),
-please switch back to cgroups v1 for now by putting
+Note that support for cgroups v2 is available only since BenchExec 3.18
+and has received less testing than using cgroups v1 so far.
+If you are on a distribution with cgroups v2 and want to switch to cgroups v1,
+you can switch back to cgroups v1 for now by putting
 `systemd.unified_cgroup_hierarchy=0` on the kernel command line.
 On Debian/Ubuntu, this could be done with the following steps and rebooting afterwards:
 ```
@@ -166,7 +213,60 @@ echo 'GRUB_CMDLINE_LINUX_DEFAULT="${GRUB_CMDLINE_LINUX_DEFAULT} systemd.unified_
 sudo update-grub
 ```
 
-### Setting up Cgroups on Machines with systemd
+### Setting up Cgroups v2 on Machines with systemd
+
+This applies for example for Ubuntu 21.10 and newer,
+Debian 11 and newer, and most other current Linux distributions.
+
+If you installed the Ubuntu/Debian package,
+everything should be taken care of and no manual steps are necessary.
+Otherwise, follow these instructions.
+
+By default, not all cgroups are delegated to each user,
+so only a restricted feature set of BenchExec would be available.
+To enabled delegation of all cgroup features, run
+`sudo systemctl edit user@.service`, insert the following lines, save and quit:
+
+    [Service]
+    # For BenchExec
+    Delegate=yes
+
+Apart from this one-time setup,
+BenchExec can use systemd to automatically take care of any necessary cgroup configuration,
+so no manual configuration is necessary.
+However, the Python package `pystemd` needs to be installed,
+which happens automatically if you installed `benchexec[systemd]` via pip.
+If missing, install the package with `sudo apt install python3-pystemd`
+or `pip install pystemd` according to how you installed BenchExec.
+
+BenchExec also works without `pystemd` if you start BenchExec inside its own cgroup.
+The easiest way to do so is using `systemd-run`:
+
+    systemd-run --user --scope --slice=benchexec -p Delegate=yes benchexec ...
+
+If you want to use systemd to pre-configure the cgroups that BenchExec uses
+(e.g., influence the allowed CPU cores etc.),
+you can do so by configuring `benchexec.slice` in the user-specific systemd instance(s)
+(all cgroups that BenchExec creates will be inside this systemd slice).
+
+### Setting up Cgroups v2 on Machines without systemd
+
+This is possible if you ensure manually that
+BenchExec is started in its own cgroup
+(i.e., a cgroup with no other processes inside).
+We recommend using systemd, though.
+
+### Setting up Cgroups v1 on Machines with systemd and BenchExec as Debian package
+
+This applies to Ubuntu 21.04 and older and Debian 10 and older
+(if the Debian package for BenchExec was used).
+
+Our Debian package should have configured everything automatically.
+Just add your user to the group `benchexec` and reboot:
+
+    adduser <USER> benchexec
+
+### Setting up Cgroups v1 on Machines with systemd
 
 Most distributions today use systemd, and
 systemd makes extensive usage of cgroups and [claims that it should be the only process that accesses cgroups directly](https://wiki.freedesktop.org/www/Software/systemd/ControlGroupInterface/).
@@ -189,9 +289,6 @@ The following steps are necessary:
    By default, this gives permissions to users of the group `benchexec`,
    this can be adjusted in the `Environment` line as necessary.
 
-  * If the system is using cgroups v2, you need to tell systemd to use cgroups v1 instead
-   as [described above](#setting-up-cgroups).
-
 By default, BenchExec will automatically attempt to use the cgroup
 `system.slice/benchexec-cgroup.service` that is created by this service file.
 If you use a different cgroup structure,
@@ -207,7 +304,7 @@ echo $$ > /sys/fs/cgroup/freezer/<CGROUP>/tasks
 In any case, please check whether everything works
 or whether additional settings are necessary as [described below](#testing-cgroups-setup-and-known-problems).
 
-### Setting up Cgroups on Machines without systemd
+### Setting up Cgroups v1 on Machines without systemd
 
 The cgroup virtual file system is typically mounted at or below `/sys/fs/cgroup`.
 If it is not, you can mount it with
@@ -222,7 +319,7 @@ you can use
 Of course permissions can also be assigned in a more fine-grained way if necessary.
 
 Alternatively, software such as `cgrulesengd` from
-the [cgroup-bin](http://libcg.sourceforge.net/) package
+the [libcgroup](https://github.com/libcgroup/libcgroup) project
 can be used to setup the cgroups hierarchy.
 
 Note that `cgrulesengd` might interfere with the cgroups of processes,
@@ -244,22 +341,9 @@ listed in this file for these controllers.
 In any case, please check whether everything works
 or whether additional settings are necessary as [described below](#testing-cgroups-setup-and-known-problems).
 
-### Setting up Cgroups in a Docker/Podman Container
-
-If you want to run benchmarks within a Docker/Podman container,
-and the cgroups file system is not available within the container,
-please use the following command line argument
-to mount the cgroup hierarchy within the container when starting it
-(same for Podman):
-
-    docker run -v /sys/fs/cgroup:/sys/fs/cgroup:rw ...
-
-Note that you additionally need some flags for container mode,
-which are explained in the [container documentation](container.md#using-benchexec-in-a-dockerpodman-container).
-
 ### Testing Cgroups Setup and Known Problems
 
-After installing BenchExec and setting up the cgroups file system, please run
+After installing BenchExec and configuring cgroups if appropriate, please run
 
     python3 -m benchexec.check_cgroups
 
@@ -267,6 +351,7 @@ This will report warnings and exit with code 1 if something is missing.
 If you find that something does not work,
 please check the following list of solutions.
 
+For cgroups v1:
 If your machine has swap, cgroups should be configured to also track swap memory.
 This is turned off by several distributions.
 If the file `memory.memsw.usage_in_bytes` does not exist in the directory
@@ -296,3 +381,4 @@ Please refer to the [development instructions](DEVELOPMENT.md).
 [LXCFS]: https://github.com/lxc/lxcfs
 [pqos]: https://github.com/intel/intel-cmt-cat/tree/master/pqos
 [pqos_wrapper]: https://gitlab.com/sosy-lab/software/pqos-wrapper
+[pystemd]: https://github.com/systemd/pystemd

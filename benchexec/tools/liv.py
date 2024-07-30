@@ -6,6 +6,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import logging
+import re
 
 import benchexec.result
 from benchexec.tools.sv_benchmarks_util import ILP32, LP64, get_data_model_from_task
@@ -14,10 +15,10 @@ from benchexec.tools.template import BaseTool2
 
 class Tool(BaseTool2):
     """
-    Tool info for liv.
+    Tool info for LIV.
     """
 
-    REQUIRED_PATHS = ["liv", "lib", "bin", "actors"]
+    REQUIRED_PATHS = ["liv", "lib", "bin", "actors", ".venv"]
 
     def executable(self, tool_locator: BaseTool2.ToolLocator):
         return tool_locator.find_executable("liv", subdir="bin")
@@ -31,7 +32,10 @@ class Tool(BaseTool2):
         return self._version_from_tool(executable)
 
     def name(self):
-        return "liv"
+        return "LIV"
+
+    def project_url(self):
+        return "https://gitlab.com/sosy-lab/software/liv"
 
     def cmdline(self, executable, options, task, rlimits):
         if task.property_file:
@@ -44,23 +48,24 @@ class Tool(BaseTool2):
         if data_model_param and "--data-model" not in options:
             options += ["--data-model", data_model_param]
 
-        self.options = options
         return [executable] + options + list(task.input_files_or_identifier)
 
     def determine_result(self, run):
-        if run.was_timeout:
-            return benchexec.result.RESULT_TIMEOUT
         if not run.output:
             return benchexec.result.RESULT_ERROR
         lastline = run.output[-1]
-        if "true" in lastline:
-            return benchexec.result.RESULT_TRUE_PROP
-        elif "false" in lastline:
-            return benchexec.result.RESULT_UNKNOWN + "(noninductive invariant)"
-        elif "unknown" in lastline:
-            return benchexec.result.RESULT_UNKNOWN
+        if lastline.startswith("Overall result: true"):
+            status = benchexec.result.RESULT_TRUE_PROP
+        elif lastline.startswith("Overall result: false"):
+            status = benchexec.result.RESULT_FALSE_PROP
+        elif lastline.startswith("Overall result: unknown"):
+            status = benchexec.result.RESULT_UNKNOWN
         else:
-            return benchexec.result.RESULT_ERROR
+            status = benchexec.result.RESULT_ERROR
+        match = re.match(r".*\((.*)\)", lastline)
+        if match:
+            status += f"({match.group(1)})"
+        return status
 
     def get_value_from_output(self, output, identifier):
         # search for the text in output and get its value,

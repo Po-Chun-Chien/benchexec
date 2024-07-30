@@ -16,8 +16,6 @@ class Tool(benchexec.tools.template.BaseTool2):
     of Technology and Economics, aiming to support the design and
     evaluation of abstraction refinement-based algorithms for the
     reachability analysis of various formalisms.
-
-    https://github.com/ftsrg/theta
     """
 
     def executable(self, tool_locator):
@@ -26,6 +24,9 @@ class Tool(benchexec.tools.template.BaseTool2):
     def name(self):
         return "Theta"
 
+    def project_url(self):
+        return "https://github.com/ftsrg/theta"
+
     def version(self, executable):
         return self._version_from_tool(executable)
 
@@ -33,9 +34,16 @@ class Tool(benchexec.tools.template.BaseTool2):
         # Theta supports data race and unreach call
         if task.property_file:
             options += ["--property", task.property_file]
+        if isinstance(task.options, dict) and task.options.get("language") == "C":
+            data_model = task.options.get("data_model")
+            if data_model:
+                options += ["--architecture", data_model]
+
         return [executable, task.single_input_file] + options
 
     def determine_result(self, run):
+        if run.was_terminated:
+            return result.RESULT_ERROR
         status = result.RESULT_UNKNOWN
         for line in run.output:
             if "SafetyResult Unsafe" in line:

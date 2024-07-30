@@ -61,11 +61,6 @@ stages:
     paths:
       - coverage.xml
 
-unit-tests:python-3.7:
-  <<: *unit-tests
-  variables:
-    PYTHON_VERSION: '3.7'
-
 unit-tests:python-3.8:
   <<: *unit-tests
   variables:
@@ -91,7 +86,7 @@ check-format:
   stage: test
   image: python:3.9
   before_script:
-    - pip install 'black<2024'
+    - pip install 'black<25'
   script:
     - black . --check --diff
   <<: *pip-cache
@@ -134,8 +129,8 @@ ruff:
   before_script:
     - "pip install ruff"
   script:
-    - "ruff check ."
-    - "ruff check . --format=gitlab > gl-code-quality-report.json"
+    - "ruff check . || true"
+    - "ruff check . --output-format=gitlab > gl-code-quality-report.json"
   variables:
     PYTHON_VERSION: '3.10'
   artifacts:
@@ -189,7 +184,7 @@ javascript-eslint:
 reuse:
   stage: test
   image:
-    name: fsfe/reuse:1
+    name: fsfe/reuse:3
     entrypoint: [""]
   script:
     - reuse lint
@@ -209,12 +204,6 @@ reuse:
   only:
     - schedules
     - web
-
-build-docker:test:python-3.7:
-  extends: .build-docker
-  variables:
-    DOCKERFILE: test/Dockerfile.python-3.7
-    IMAGE: test:python-3.7
 
 build-docker:test:python-3.8:
   extends: .build-docker

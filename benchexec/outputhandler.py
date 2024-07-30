@@ -9,8 +9,10 @@ import base64
 import bz2
 import collections
 import datetime
+import decimal
 import io
 import os
+import shlex
 import threading
 import time
 import sys
@@ -265,10 +267,7 @@ class OutputHandler(object):
                 "tool", self.benchmark.tool_name + " " + self.benchmark.tool_version
             )
             + format_line("tool executable", self.benchmark.executable)
-            + format_line(
-                "options",
-                " ".join(map(util.escape_string_shell, self.benchmark.options)),
-            )
+            + format_line("options", shlex.join(self.benchmark.options))
             + format_line(
                 "property file", util.text_or_none(self.benchmark.propertytag)
             )
@@ -702,6 +701,8 @@ class OutputHandler(object):
             value = ",".join(map(str, value))  # pytype: disable=wrong-arg-types
         elif isinstance(value, datetime.datetime):
             value = value.isoformat()
+        elif isinstance(value, decimal.Decimal):
+            value = util.print_decimal(value)
 
         if prefix:
             title = prefix + "_" + title
@@ -723,6 +724,8 @@ class OutputHandler(object):
                     value_suffix = "B"
             elif title.startswith("mbm"):
                 value_suffix = "B/s"
+            elif title.startswith("pressure-") and title.endswith("-some"):
+                value_suffix = "s"
 
         value = f"{value}{value_suffix}"
 
@@ -818,8 +821,7 @@ class OutputHandler(object):
                 )
                 cmdline = [tableGeneratorPath] + xml_file_names
                 util.printOut(
-                    "In order to get HTML and CSV tables, run\n"
-                    + " ".join(map(util.escape_string_shell, cmdline)),
+                    "In order to get HTML and CSV tables, run\n" + shlex.join(cmdline)
                 )
 
         if isStoppedByInterrupt:
