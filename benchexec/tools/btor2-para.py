@@ -10,7 +10,7 @@ BASE_CLASS = __import__("benchexec.tools.btor2-select", fromlist=["Tool"]).Tool
 
 class Tool(BASE_CLASS):
     def executable(self, tool_locator):
-        return tool_locator.find_executable("btor2-par", subdir="bin")
+        return tool_locator.find_executable("btor2-para", subdir="bin")
 
     def name(self):
-        return "Btor2-Par"
+        return "Btor2-Para"
