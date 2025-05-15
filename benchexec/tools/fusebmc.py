@@ -48,7 +48,11 @@ class Tool(benchexec.tools.template.BaseTool2):
     def determine_result(self, run):
         status = result.RESULT_UNKNOWN
 
-        if run.output.any_line_contains("DONE"):
+        if run.output.any_line_contains(
+            "Running FuSeBMC for Cover-Error"
+        ) and run.output.any_line_contains("Testcase is generated"):
+            status = result.RESULT_FALSE_REACH
+        elif run.output.any_line_contains("DONE"):
             status = result.RESULT_DONE
 
         return status
