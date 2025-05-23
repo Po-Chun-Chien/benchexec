@@ -73,18 +73,26 @@ class Tool(benchexec.tools.template.BaseTool2):
         and should give some indication of the failure reason
         (e.g., "CRASH", "OUT_OF_MEMORY", etc.).
         """
-        for line in run.output:
+        has_error = False
+        has_done = False
+        for line in run.output[::-1]:
             if line.startswith("KLEE: ERROR: "):
+                has_error = True
                 if line.find("ASSERTION FAIL:") != -1:
                     return result.RESULT_FALSE_REACH
                 elif line.find("memory error: out of bound pointer") != -1:
                     return result.RESULT_FALSE_DEREF
                 elif line.find("overflow") != -1:
                     return result.RESULT_FALSE_OVERFLOW
-                else:
-                    return f"ERROR ({run.exit_code.value})"
             if line.startswith("KLEE: done"):
-                return result.RESULT_DONE
+                has_done = True
+        if has_error:
+            if run.exit_code.value == 0:
+                return result.RESULT_FALSE_PROP + "(other)"
+            else:
+                return result.RESULT_ERROR
+        if has_done:
+            return result.RESULT_DONE
         return result.RESULT_UNKNOWN
 
     def get_value_from_output(self, lines, identifier):
