@@ -121,7 +121,9 @@ class Tool(benchexec.tools.template.BaseTool2):
                 if result_str == "TRUE":
                     status = result.RESULT_TRUE_PROP
                 elif "FALSE" in result_str:
-                    if result_str == "FALSE(valid-memtrack)":
+                    if result_str == "FALSE(unreach-call)":
+                        status = result.RESULT_FALSE_REACH
+                    elif result_str == "FALSE(valid-memtrack)":
                         status = result.RESULT_FALSE_MEMTRACK
                     elif result_str == "FALSE(valid-deref)":
                         status = result.RESULT_FALSE_DEREF
@@ -132,7 +134,7 @@ class Tool(benchexec.tools.template.BaseTool2):
                     elif result_str == "FALSE(valid-memcleanup)":
                         status = result.RESULT_FALSE_MEMCLEANUP
                     else:
-                        status = result.RESULT_FALSE_REACH
+                        status = result.RESULT_FALSE_PROP + "(other)"
                 elif "UNKNOWN" in output:
                     status = result.RESULT_UNKNOWN
 
