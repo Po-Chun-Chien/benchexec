@@ -7,7 +7,6 @@
 
 import benchexec.result as result
 import benchexec.tools.template
-import benchexec.model
 from benchexec.tools.sv_benchmarks_util import get_data_model_from_task, ILP32, LP64
 
 
@@ -91,9 +90,7 @@ class Tool(benchexec.tools.template.BaseTool2):
                 return result.RESULT_FALSE_PROP + "(other)"
             else:
                 return result.RESULT_ERROR
-        if has_done:
-            return result.RESULT_DONE
-        return result.RESULT_UNKNOWN
+        return result.RESULT_UNKNOWN + ("(done)" if has_done else "")
 
     def get_value_from_output(self, lines, identifier):
         # search for the text in output and get its value,
