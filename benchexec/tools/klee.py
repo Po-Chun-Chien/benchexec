@@ -63,33 +63,37 @@ class Tool(benchexec.tools.template.BaseTool2):
         return "https://klee.github.io"
 
     def determine_result(self, run):
-        """
-        Parse the output of the tool and extract the verification result.
-        This method always needs to be overridden.
-        If the tool gave a result, this method needs to return one of the
-        benchexec.result.RESULT_* strings.
-        Otherwise an arbitrary string can be returned that will be shown to the user
-        and should give some indication of the failure reason
-        (e.g., "CRASH", "OUT_OF_MEMORY", etc.).
-        """
-        has_error = False
+        if run.exit_code.value != 0:
+            return result.RESULT_ERROR
+        has_assert_error = False
+        has_deref_error = False
+        has_overflow_error = False
+        has_other_error = False
         has_done = False
         for line in run.output[::-1]:
             if line.startswith("KLEE: ERROR: "):
-                has_error = True
                 if line.find("ASSERTION FAIL:") != -1:
-                    return result.RESULT_FALSE_REACH
+                    has_assert_error = True
                 elif line.find("memory error: out of bound pointer") != -1:
-                    return result.RESULT_FALSE_DEREF
+                    has_deref_error = True
                 elif line.find("overflow") != -1:
-                    return result.RESULT_FALSE_OVERFLOW
+                    has_overflow_error = True
+                else:
+                    has_other_error = True
             if line.startswith("KLEE: done"):
                 has_done = True
-        if has_error:
-            if run.exit_code.value == 0:
-                return result.RESULT_FALSE_PROP + "(other)"
-            else:
-                return result.RESULT_ERROR
+        if has_assert_error or has_deref_error or has_overflow_error or has_other_error:
+            suffix = []
+            if has_assert_error:
+                suffix.append("unreach-call")
+            if has_deref_error:
+                suffix.append("valid-deref")
+            if has_overflow_error:
+                return suffix.append("no-overflow")
+            if has_other_error:
+                suffix.append("other")
+            suffix = ",".join(suffix)
+            return result.RESULT_FALSE_PROP + f"({suffix})"
         return result.RESULT_UNKNOWN + ("(done)" if has_done else "")
 
     def get_value_from_output(self, lines, identifier):
