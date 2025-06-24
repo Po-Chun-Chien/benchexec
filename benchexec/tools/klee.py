@@ -73,13 +73,13 @@ class Tool(benchexec.tools.template.BaseTool2):
         has_done = False
         for line in run.output[::-1]:
             if line.startswith("KLEE: ERROR: "):
-                if line.find("ASSERTION FAIL:") != -1:
+                if "ASSERTION FAIL:" in line:
                     has_assert_error = True
-                elif line.find("memory error: out of bound pointer") != -1:
+                elif "memory error: out of bound pointer" in line:
                     has_deref_error = True
-                elif line.find("overflow") != -1:
+                elif "overflow" in line:
                     has_overflow_error = True
-                elif line.find("invalid klee_assume call (provably false)") != -1:
+                elif "invalid klee_assume call (provably false)" in line:
                     has_invalid_assume = True
                 else:
                     has_other_error = True
