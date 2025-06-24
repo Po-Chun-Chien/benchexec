@@ -5,6 +5,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import logging
 import benchexec.result as result
 import benchexec.tools.template
 from benchexec.tools.sv_benchmarks_util import get_data_model_from_task, ILP32, LP64
@@ -71,6 +72,7 @@ class Tool(benchexec.tools.template.BaseTool2):
         has_invalid_assume = False
         has_other_error = False
         has_done = False
+        num_partial_paths = None
         for line in run.output[::-1]:
             if line.startswith("KLEE: ERROR: "):
                 if "ASSERTION FAIL:" in line:
@@ -85,6 +87,22 @@ class Tool(benchexec.tools.template.BaseTool2):
                     has_other_error = True
             if line.startswith("KLEE: done"):
                 has_done = True
+                if "partially completed paths" in line:
+                    if num_partial_paths is not None:
+                        logging.warning(
+                            "Duplicate entries for partially completed paths"
+                        )
+                    pos = line.find("=") + 1
+                    num_partial_paths = line[pos:].strip()
+                    if not num_partial_paths.isdigit():
+                        logging.warning(
+                            "Non-numeric value for number of "
+                            "partially completed paths: '%s'",
+                            num_partial_paths,
+                        )
+                    else:
+                        num_partial_paths = int(num_partial_paths)
+
         if (
             has_assert_error
             or has_deref_error
@@ -105,6 +123,8 @@ class Tool(benchexec.tools.template.BaseTool2):
                 suffix.append("other")
             suffix = ",".join(suffix)
             return result.RESULT_FALSE_PROP + f"({suffix})"
+        if has_done and num_partial_paths == 0:
+            return result.RESULT_TRUE_PROP
         return result.RESULT_UNKNOWN + ("(done)" if has_done else "")
 
     def get_value_from_output(self, lines, identifier):
