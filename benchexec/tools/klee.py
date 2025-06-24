@@ -68,6 +68,7 @@ class Tool(benchexec.tools.template.BaseTool2):
         has_assert_error = False
         has_deref_error = False
         has_overflow_error = False
+        has_invalid_assume = False
         has_other_error = False
         has_done = False
         for line in run.output[::-1]:
@@ -78,11 +79,19 @@ class Tool(benchexec.tools.template.BaseTool2):
                     has_deref_error = True
                 elif line.find("overflow") != -1:
                     has_overflow_error = True
+                elif line.find("invalid klee_assume call (provably false)") != -1:
+                    has_invalid_assume = True
                 else:
                     has_other_error = True
             if line.startswith("KLEE: done"):
                 has_done = True
-        if has_assert_error or has_deref_error or has_overflow_error or has_other_error:
+        if (
+            has_assert_error
+            or has_deref_error
+            or has_overflow_error
+            or has_invalid_assume
+            or has_other_error
+        ):
             suffix = []
             if has_assert_error:
                 suffix.append("unreach-call")
@@ -90,6 +99,8 @@ class Tool(benchexec.tools.template.BaseTool2):
                 suffix.append("valid-deref")
             if has_overflow_error:
                 return suffix.append("no-overflow")
+            if has_invalid_assume:
+                suffix.append("valid-assume")
             if has_other_error:
                 suffix.append("other")
             suffix = ",".join(suffix)
