@@ -79,6 +79,10 @@ class Tool(benchexec.tools.template.BaseTool2):
                     errors.add("no-overflow")
                 elif "invalid klee_assume call (provably false)" in line:
                     errors.add("valid-assume")
+                elif "abort failure" in line:
+                    errors.add("abort")
+                elif "concretized symbolic size" in line:
+                    errors.add("conc-sym-size")
                 else:
                     errors.add("other")
             if line.startswith("KLEE: done"):
