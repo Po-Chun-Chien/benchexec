@@ -66,25 +66,21 @@ class Tool(benchexec.tools.template.BaseTool2):
     def determine_result(self, run):
         if run.exit_code.value != 0:
             return result.RESULT_ERROR
-        has_assert_error = False
-        has_deref_error = False
-        has_overflow_error = False
-        has_invalid_assume = False
-        has_other_error = False
+        errors = set()
         has_done = False
         num_partial_paths = None
         for line in run.output[::-1]:
             if line.startswith("KLEE: ERROR: "):
                 if "ASSERTION FAIL:" in line:
-                    has_assert_error = True
+                    errors.add("unreach-call")
                 elif "memory error: out of bound pointer" in line:
-                    has_deref_error = True
+                    errors.add("valid-deref")
                 elif "overflow" in line:
-                    has_overflow_error = True
+                    errors.add("no-overflow")
                 elif "invalid klee_assume call (provably false)" in line:
-                    has_invalid_assume = True
+                    errors.add("valid-assume")
                 else:
-                    has_other_error = True
+                    errors.add("other")
             if line.startswith("KLEE: done"):
                 has_done = True
                 if "partially completed paths" in line:
@@ -103,25 +99,8 @@ class Tool(benchexec.tools.template.BaseTool2):
                     else:
                         num_partial_paths = int(num_partial_paths)
 
-        if (
-            has_assert_error
-            or has_deref_error
-            or has_overflow_error
-            or has_invalid_assume
-            or has_other_error
-        ):
-            suffix = []
-            if has_assert_error:
-                suffix.append("unreach-call")
-            if has_deref_error:
-                suffix.append("valid-deref")
-            if has_overflow_error:
-                return suffix.append("no-overflow")
-            if has_invalid_assume:
-                suffix.append("valid-assume")
-            if has_other_error:
-                suffix.append("other")
-            suffix = ",".join(suffix)
+        if errors:
+            suffix = ",".join(sorted(errors))
             return result.RESULT_FALSE_PROP + f"({suffix})"
         if has_done and num_partial_paths == 0:
             return result.RESULT_TRUE_PROP
