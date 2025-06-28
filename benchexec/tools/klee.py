@@ -69,6 +69,7 @@ class Tool(benchexec.tools.template.BaseTool2):
         errors = set()
         has_done = False
         num_partial_paths = None
+        has_conc_sym_size = False
         for line in run.output[::-1]:
             if line.startswith("KLEE: ERROR: "):
                 if "ASSERTION FAIL:" in line:
@@ -78,11 +79,14 @@ class Tool(benchexec.tools.template.BaseTool2):
                 elif "overflow" in line:
                     errors.add("no-overflow")
                 elif "invalid klee_assume call (provably false)" in line:
+                    # for debugging
                     errors.add("valid-assume")
                 elif "abort failure" in line:
+                    # for debugging
                     errors.add("abort")
                 elif "concretized symbolic size" in line:
-                    errors.add("conc-sym-size")
+                    # underapproximation, not an error
+                    has_conc_sym_size = True
                 else:
                     errors.add("other")
             if line.startswith("KLEE: done"):
@@ -106,9 +110,14 @@ class Tool(benchexec.tools.template.BaseTool2):
         if errors:
             suffix = ",".join(sorted(errors))
             return result.RESULT_FALSE_PROP + f"({suffix})"
-        if has_done and num_partial_paths == 0:
-            return result.RESULT_TRUE_PROP
-        return result.RESULT_UNKNOWN + ("(done)" if has_done else "")
+        if has_done:
+            if has_conc_sym_size:
+               result.RESULT_UNKNOWN + "(conc-sym-size)"
+            if num_partial_paths != 0:
+                return result.RESULT_UNKNOWN + "(incomplete)"
+            else:
+                return result.RESULT_TRUE_PROP
+        return result.RESULT_UNKNOWN
 
     def get_value_from_output(self, lines, identifier):
         # search for the text in output and get its value,
