@@ -76,9 +76,12 @@ class Tool(benchexec.tools.template.BaseTool2):
             if line.startswith("KLEE: ERROR: "):
                 if "ASSERTION FAIL:" in line:
                     errors.add("unreach-call")
-                elif "memory error: out of bound pointer" in line:
+                elif (
+                    "memory error: out of bound pointer" in line
+                    or "memory error: null page access" in line
+                ):
                     errors.add("valid-deref")
-                elif "overflow" in line:
+                elif "overflow" in line or "overshift error" in line:
                     errors.add("no-overflow")
                 elif "invalid klee_assume call (provably false)" in line:
                     # for debugging
