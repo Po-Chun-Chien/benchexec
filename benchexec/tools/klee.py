@@ -49,7 +49,8 @@ class Tool(benchexec.tools.template.BaseTool2):
         if rlimits.memory:
             options += [f"--max-memory={rlimits.memory}"]
         if rlimits.cputime:
-            options += [f"--max-cputime-soft={rlimits.cputime}"]
+            # Do not set time limit to avoid KLEE terminating itself too early
+            pass
 
         data_model_param = get_data_model_from_task(task, {ILP32: "--32", LP64: "--64"})
         if data_model_param and data_model_param not in options:
