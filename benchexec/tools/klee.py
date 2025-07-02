@@ -65,13 +65,14 @@ class Tool(benchexec.tools.template.BaseTool2):
         return "https://klee.github.io"
 
     def determine_result(self, run):
-        if run.exit_code.value != 0:
+        if not run.was_terminated and run.exit_code.value != 0:
+            # KLEE terminates itself with non-zero exit code
             return result.RESULT_ERROR
         errors = set()
         has_done = False
         num_partial_paths = None
         has_conc_sym_size = False
-        for line in run.output[::-1]:
+        for line in run.output:
             if line.startswith("KLEE: ERROR: "):
                 if "ASSERTION FAIL:" in line:
                     errors.add("unreach-call")
@@ -90,7 +91,7 @@ class Tool(benchexec.tools.template.BaseTool2):
                     has_conc_sym_size = True
                 else:
                     errors.add("other")
-            if line.startswith("KLEE: done"):
+            elif line.startswith("KLEE: done"):
                 has_done = True
                 if "partially completed paths" in line:
                     if num_partial_paths is not None:
