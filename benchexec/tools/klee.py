@@ -112,7 +112,7 @@ class Tool(benchexec.tools.template.BaseTool2):
             return result.RESULT_FALSE_PROP + f"({suffix})"
         if has_done:
             if has_conc_sym_size:
-               result.RESULT_UNKNOWN + "(conc-sym-size)"
+                return result.RESULT_UNKNOWN + "(conc-sym-size)"
             if num_partial_paths != 0:
                 return result.RESULT_UNKNOWN + "(incomplete)"
             else:
