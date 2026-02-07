@@ -1,3 +1,10 @@
+# This file is part of BenchExec, a framework for reliable benchmarking:
+# https://github.com/sosy-lab/benchexec
+#
+# SPDX-FileCopyrightText: 2007-2020 Dirk Beyer <https://www.sosy-lab.org>
+#
+# SPDX-License-Identifier: Apache-2.0
+
 import benchexec
 import benchexec.result as result
 from benchexec.tools.sv_benchmarks_util import get_data_model_from_task, ILP32, LP64
@@ -5,24 +12,41 @@ from benchexec.tools.sv_benchmarks_util import get_data_model_from_task, ILP32, 
 
 class Tool(benchexec.tools.template.BaseTool2):
     """
-    Info object for the tool Kratos2.
-    URL: TODO
+    Tool info Kratos2's SV-COMP wrapper
+    (taken and adapted from https://doi.org/10.5281/zenodo.7890411)
     """
 
-    REQUIRED_PATHS = ["."]
+    REQUIRED_PATHS = [
+        "bin/",
+        "include/",
+        "lib/",
+        "tools/",
+    ]
 
     def executable(self, tool_locator):
-        return tool_locator.find_executable("kratos_svcomp.py")
-
-    def environment(self, executable):
-        return {'additionalEnv' : {'PYTHONPATH' : ':/home/ae/.local/lib/python3.10/site-packages'}}
+        return tool_locator.find_executable("kratos_svcomp.py", subdir="bin")
 
     def name(self):
-        """The human-readable name of the tool."""
-        return "kratos2"
+        return "Kratos2"
+
+    def project_url(self):
+        return "https://kratos.fbk.eu/"
+
+    def version(self, executable):
+        return self._version_from_tool(executable, line_prefix="Kratos2")
+
+    def program_files(self, executable):
+        return self._program_files_from_executable(
+            executable, self.REQUIRED_PATHS, parent_dir=True
+        )
 
     def cmdline(self, executable, options, task, rlimits):
-        return ["python3", executable] + options + list(task.input_files_or_identifier)
+        assert task.options.get("language") == "C"
+        options += ["--svcomp-spec", task.property_file]
+        data_model = get_data_model_from_task(task, {ILP32: "32", LP64: "64"})
+        if data_model and "--bitvectors" not in options:
+            options += ["--bitvectors", data_model]
+        return [executable, *options, task.single_input_file]
 
     def determine_result(self, run):
         reason = None
