@@ -33,7 +33,10 @@ class Tool(benchexec.tools.template.BaseTool2):
         return "https://kratos.fbk.eu/"
 
     def version(self, executable):
-        return self._version_from_tool(executable, line_prefix="Kratos2")
+        # argparse's version action in the Python wrapper may introduce line breaks,
+        # so we join the lines to get the full version string
+        version = " ".join(self._version_from_tool(executable).splitlines())
+        return version[len("Kratos2") :].strip()
 
     def program_files(self, executable):
         return self._program_files_from_executable(
