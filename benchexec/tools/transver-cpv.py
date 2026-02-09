@@ -6,6 +6,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import benchexec.tools.cpv
+import benchexec.result as result
 
 
 class Tool(benchexec.tools.cpv.Tool):
@@ -27,3 +28,8 @@ class Tool(benchexec.tools.cpv.Tool):
 
     def project_url(self):
         return "https://gitlab.com/sosy-lab/software/transver-cpv"
+
+    def determine_result(self, run):
+        if any(line.startswith("ERROR: TransVer failed") for line in run.output[::-1]):
+            return result.RESULT_ERROR + "(TransVer failed)"
+        return super().determine_result(run)
