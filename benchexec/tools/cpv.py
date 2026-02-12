@@ -75,4 +75,4 @@ class Tool(benchexec.tools.template.BaseTool2):
                         reason = f"{stage} {reason}"
                         break
                 return f"{result.RESULT_ERROR} ({reason})"
-        return result.RESULT_ERROR
+        return result.RESULT_DONE
