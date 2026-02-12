@@ -47,6 +47,13 @@ class Tool(benchexec.tools.template.BaseTool2):
         return [executable, task.single_input_file, *options]
 
     def determine_result(self, run):
+        # map CPV's log excerpts to normalized error reasons
+        TRANS_STAGES = {
+            "C-to-K2": "C-to-K2",
+            "K2-to-Btor2": "K2-to-Btor2",
+            "K2-to-VMT": "K2-to-VMT",
+            "Functional encoding failed": "VMT-to-Btor2",
+        }
         for line in run.output[::-1]:
             if line.startswith("INFO: Verification result:"):
                 if "TRUE" in line:
@@ -62,5 +69,10 @@ class Tool(benchexec.tools.template.BaseTool2):
                 if "ERROR" in line:
                     return result.RESULT_ERROR + "(verification failed)"
             if line.startswith("cpv.task_translator.TranslationFailedError"):
-                return result.RESULT_ERROR + "(translation failed)"
+                reason = "translation failed"
+                for log_excerpt, stage in TRANS_STAGES.items():
+                    if log_excerpt in line:
+                        reason = f"{stage} {reason}"
+                        break
+                return f"{result.RESULT_ERROR} ({reason})"
         return result.RESULT_ERROR
