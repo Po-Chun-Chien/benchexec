@@ -72,8 +72,8 @@ class Tool(benchexec.tools.template.BaseTool2):
         regex_decimal = r"(\d+\.\d*|\d*\.\d+)"
         regex_scinote = r"(\d\.?\d*[Ee][+\-]?\d+)"
         regex_pattern = (
-            re.escape(identifier)
-            + r"\s*[:=]?\s*(-?("
+            identifier
+            + r"\s*[:=]?\s*(-?(?P<value>"
             + regex_integer
             + r"|"
             + regex_decimal
@@ -87,7 +87,7 @@ class Tool(benchexec.tools.template.BaseTool2):
             result = regex.search(line)
             if result:
                 if match is None:
-                    match = result.group(1)
+                    match = result.group("value")
                 else:
                     logging.warning(
                         "skipping repeated matches for identifier '%s': '%s'",
